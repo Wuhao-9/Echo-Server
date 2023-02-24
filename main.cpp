@@ -5,16 +5,20 @@
  * @copyright Copyright (c) 2023
  *
  */
+#include "worker_func.h"
 
 #include <unistd.h>
 #include <iostream>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 
+const int MAX_WORK_THREADS = 15;
+
 namespace initialized_instance {
     int listener_fd = -1;
     int epoll_fd = -1;
-    ::sockaddr_in server_addr;
+    ::sockaddr_in server_addr {};
+    ::pthread_t thread_pool[MAX_WORK_THREADS] {};
 }
 
 bool create_server_listener(unsigned host, unsigned short port);
@@ -43,6 +47,31 @@ int main(int argc, char* argv[]) {
         std::cerr << "Unable to start listen server: ip=" << ::inet_ntop(AF_INET, &initialized_instance::server_addr.sin_addr.s_addr, host_str, INET_ADDRSTRLEN) << ", port=" << port << std::endl;
         return -1;
     }
+
+    for (int i = 0; i < MAX_WORK_THREADS; i++) {
+        ::pthread_create(&initialized_instance::thread_pool[i], nullptr, wroker_func, nullptr);
+        ::pthread_detach(initialized_instance::thread_pool[i]); // detach子线程，线程结束时自动释放相关资源
+    }
+
+    epoll_event completed_events[1024];
+    while (true) {
+        auto comp_nums = ::epoll_wait(initialized_instance::epoll_fd, completed_events, 1024, -1);
+        if (comp_nums == 0) { } // 此处epoll_wait()设置为非阻塞，故不会返回0
+        else if (comp_nums > 0) {
+            for (int i = 0; i < comp_nums; i++) {
+                int cur_fd = completed_events[i].data.fd;
+                if (cur_fd == initialized_instance::listener_fd) { // 有客户端连接，转交给Acceptor
+                    // acceptor_func();
+                } else { // 有客户端请求，转交给Work-thread
+                    pthread_mutex_lock(&sync_util::client_mutex);
+                    client_queue.emplace_back(cur_fd);
+                    pthread_mutex_unlock(&sync_util::client_mutex);
+                    pthread_cond_signal(&sync_util::client_cond);
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 bool create_server_listener(unsigned host, unsigned short port) {
