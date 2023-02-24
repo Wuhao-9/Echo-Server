@@ -5,8 +5,8 @@
  * @copyright Copyright (c) 2023
  *
  */
+#include "acceptor_func.h"
 #include "worker_func.h"
-
 #include <unistd.h>
 #include <iostream>
 #include <arpa/inet.h>
@@ -48,6 +48,10 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    ::pthread_t acceptor_thread;
+    ::pthread_create(&acceptor_thread, nullptr, accept_thread_func, nullptr);
+    ::pthread_detach(acceptor_thread);
+
     for (int i = 0; i < MAX_WORK_THREADS; i++) {
         ::pthread_create(&initialized_instance::thread_pool[i], nullptr, wroker_func, nullptr);
         ::pthread_detach(initialized_instance::thread_pool[i]); // detach子线程，线程结束时自动释放相关资源
@@ -63,6 +67,10 @@ int main(int argc, char* argv[]) {
                 if (cur_fd == initialized_instance::listener_fd) { // 有客户端连接，转交给Acceptor
                     // acceptor_func();
                 } else { // 有客户端请求，转交给Work-thread
+                    if (completed_events[i].events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+                        release_client(cur_fd);
+                        continue;
+                    }
                     pthread_mutex_lock(&sync_util::client_mutex);
                     client_queue.emplace_back(cur_fd);
                     pthread_mutex_unlock(&sync_util::client_mutex);
@@ -73,6 +81,9 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+
+
+
 
 bool create_server_listener(unsigned host, unsigned short port) {
     using namespace initialized_instance;
