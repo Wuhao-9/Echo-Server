@@ -40,11 +40,11 @@ void* wroker_func(void* args) {
         bool is_error = false;
 
         while (true) {
-            char buff[256];
-            int transfered_bytes = ::recv(client_fd, buff, 256, 0);
+            char buff[256] {};
+            int transfered_bytes = ::recv(client_fd, buff, 256 - 1, 0); // 防止缓冲区溢出
             if (transfered_bytes == -1) {
                 if (errno == EWOULDBLOCK || errno == EAGAIN)
-                    continue;
+                    break;
                 else {
                     std::cerr << "recv error, The client[" << client_fd << "] connection is to be disconnected" << std::endl;
                     release_client(client_fd);

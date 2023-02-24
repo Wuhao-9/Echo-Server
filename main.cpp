@@ -22,6 +22,7 @@ namespace initialized_instance {
 }
 
 bool create_server_listener(unsigned host, unsigned short port);
+void init_sync_util();
 
 int main(int argc, char* argv[]) {
     int option;
@@ -42,6 +43,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    init_sync_util(); // 初始化同步相关的工具
+    
     if (!create_server_listener(INADDR_ANY, port)) {
         char host_str[INET_ADDRSTRLEN + 1] {};
         std::cerr << "Unable to start listen server: ip=" << ::inet_ntop(AF_INET, &initialized_instance::server_addr.sin_addr.s_addr, host_str, INET_ADDRSTRLEN) << ", port=" << port << std::endl;
@@ -65,7 +68,7 @@ int main(int argc, char* argv[]) {
             for (int i = 0; i < comp_nums; i++) {
                 int cur_fd = completed_events[i].data.fd;
                 if (cur_fd == initialized_instance::listener_fd) { // 有客户端连接，转交给Acceptor
-                    // acceptor_func();
+                    pthread_cond_signal(&acceptor_util::acceptor_cond);
                 } else { // 有客户端请求，转交给Work-thread
                     if (completed_events[i].events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
                         release_client(cur_fd);
@@ -119,4 +122,15 @@ bool create_server_listener(unsigned host, unsigned short port) {
         return false;
 
     return true;
+}
+
+void init_sync_util() {
+    using namespace sync_util;
+    using namespace acceptor_util;
+
+    ::pthread_cond_init(&client_cond, nullptr);
+    ::pthread_mutex_init(&client_mutex, nullptr);
+
+    ::pthread_cond_init(&acceptor_cond, nullptr);
+    ::pthread_mutex_init(&acceptor_mutex, nullptr);
 }

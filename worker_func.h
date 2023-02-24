@@ -2,6 +2,7 @@
 #define WORKER_FUNC_H
 
 #include <list>
+#include <pthread.h>
 
 extern std::list<int> client_queue;
 
@@ -11,8 +12,8 @@ namespace initialized_instance {
 
 namespace sync_util {
     extern bool thread_stop;
-    extern pthread_mutex_t client_mutex;
-    extern pthread_cond_t client_cond;
+    extern ::pthread_mutex_t client_mutex;
+    extern ::pthread_cond_t client_cond;
 }
 
 void* wroker_func(void * args);
