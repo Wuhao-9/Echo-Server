@@ -7,6 +7,7 @@
  */
 #include "acceptor_func.h"
 #include "worker_func.h"
+#include "daemon.hpp"
 #include <unistd.h>
 #include <iostream>
 #include <arpa/inet.h>
@@ -42,7 +43,11 @@ int main(int argc, char* argv[]) {
             std::cerr << "Usage: Echo [-p <num>] [-d]" << std::endl;
         }
     }
-
+    
+    if (is_daemon) {
+        start_daemon();
+    }
+    
     init_sync_util(); // 初始化同步相关的工具
     
     if (!create_server_listener(INADDR_ANY, port)) {
